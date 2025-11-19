@@ -1,4 +1,4 @@
-name: 'Publish Tauri App' # 工作流的名称
+name: 'Publish Tauri App with npm' # 工作流名称已更新
 
 on:
   push:
@@ -22,26 +22,30 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm' # ⭐️ 根据您的偏好，使用 pnpm 缓存
-      - name: Install pnpm
-        run: npm install -g pnpm
+          cache: 'npm' # 缓存类型改为 npm
           
-      - name: Install dependencies (pnpm) # 3. 使用 pnpm 安装前端依赖
-        run: pnpm install
+      - name: Install dependencies (npm) # 3. 使用 npm 安装依赖
+        run: npm install # 使用 npm install 命令
         
       - name: Install Rust toolchain # 4. 设置 Rust 环境
         uses: dtolnay/rust-toolchain@stable
         
-      - name: Build Tauri App # 5. 运行 Tauri 构建命令
+      # 5. [仅限 Linux] 安装 Webkit2Gtk 依赖
+      - name: Install Linux Dependencies
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt update
+          sudo apt install -y libwebkit2gtk-4.0-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+          
+      - name: Build Tauri App # 6. 运行 Tauri 构建命令
         uses: tauri-apps/tauri-action@v0 # 使用官方 Tauri Action
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 用于创建 Release
         with:
           # 此处可以传入 tauri build 的额外参数
-          # 默认会构建 release 包并上传到 GitHub Release
           args: '--target ${{ matrix.target }}'
           
-      - name: Upload Artifacts # 6. 将生成的安装包作为工作流产物上传
+      - name: Upload Artifacts # 7. 将生成的安装包作为工作流产物上传
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}-build
