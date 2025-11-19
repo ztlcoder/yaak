@@ -7,10 +7,9 @@ on:
 
 jobs:
   publish-windows:
-    # 只需要 Windows 平台
     runs-on: windows-latest 
     
-    # 明确定义目标平台参数，便于后续引用
+    # 定义目标平台参数
     env:
       TAURI_TARGET: x86_64-pc-windows-msvc
 
@@ -30,21 +29,15 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: ${{ env.TAURI_TARGET }} # 使用环境变量中定义的 target
+          targets: ${{ env.TAURI_TARGET }}
           
-      - name: Build Tauri App for Windows # 5. 运行 Tauri 构建命令
+      - name: Build and Release Tauri App for Windows # 5. 运行 Tauri 构建命令 (自动上传到 Release)
         uses: tauri-apps/tauri-action@v0 
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 自动提供的 secret
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 用于创建 Release
         with:
           # 传入正确的 Windows target 参数
           args: '--target ${{ env.TAURI_TARGET }}'
+          # 注意：tauri-action 会自动创建 Release 并上传安装包
           
-      - name: Upload Windows Artifacts # 6. 将生成的安装包作为工作流产物上传
-        # 仅在构建步骤成功时执行此步骤
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-installer
-          # Tauri 默认的 Windows 输出路径
-          path: src-tauri/target/release/bundle/
+      # ⚠️ 移除了 actions/upload-artifact 步骤，避免重复上传和路径警告。
