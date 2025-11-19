@@ -3,60 +3,67 @@ name: 'Publish Tauri App with npm'
 on:
   push:
     branches:
-      - main 
+      - main # 在代码推送到 main 分支时触发构建
 
 jobs:
   publish-tauri:
+    # 策略：同时构建 Windows, macOS, Linux 平台
     strategy:
       fail-fast: false
       matrix:
-        # ⭐️ 关键修改：同时定义 platform 和 target
         include:
+          # macOS 平台
           - platform: macos-latest
             target: universal-apple-darwin
+          # Linux 平台
           - platform: ubuntu-latest
             target: x86_64-unknown-linux-gnu
+          # Windows 平台
           - platform: windows-latest
             target: x86_64-pc-windows-msvc
     
-    runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }} # 在对应的操作系统上运行任务
 
     steps:
-      - uses: actions/checkout@v4 
+      - uses: actions/checkout@v4 # 1. 检出代码
       
-      - name: Setup Node.js 
+      - name: Setup Node.js # 2. 设置 Node.js 环境
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm' 
+          cache: 'npm' # 依赖包缓存使用 npm
           
-      - name: Install dependencies (npm) 
+      - name: Install dependencies (npm) # 3. 使用 npm 安装前端依赖
         run: npm install
         
-      - name: Install Rust toolchain 
+      - name: Install Rust toolchain # 4. 设置 Rust 环境和目标架构
         uses: dtolnay/rust-toolchain@stable
-        # 针对 macOS 构建通用二进制文件
         with:
           toolchain: stable
           targets: ${{ matrix.target }}
         
-      # 5. [仅限 Linux] 安装 Webkit2Gtk 依赖 
+      # 5. [仅限 Linux] 安装 Webkit2Gtk 依赖
       - name: Install Linux Dependencies
         if: matrix.platform == 'ubuntu-latest'
         run: |
+          # 刷新包列表以确保找到依赖包
           sudo apt update
+          # 安装 Tauri 在 Linux 上所需的依赖
           sudo apt install -y libwebkit2gtk-4.0-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
           
       - name: Build Tauri App # 6. 运行 Tauri 构建命令
-        uses: tauri-apps/tauri-action@v0 
+        id: tauri_build # 赋予 ID 用于引用输出
+        uses: tauri-apps/tauri-action@v0 # 使用官方 Tauri Action
         env:
+          # GITHUB_TOKEN 是 GitHub Actions 自动提供的 secret
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         with:
-          # ⭐️ 使用 matrix.target 传入正确的值
+          # 传入正确的 target 参数
           args: '--target ${{ matrix.target }}'
           
-      - name: Upload Artifacts 
+      - name: Upload Artifacts # 7. 将生成的安装包作为工作流产物上传
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.platform }}-${{ matrix.target }}-build
-          path: src-tauri/target/release/bundle/
+          # 引用上一步 tauri-action 的输出路径，保证能找到文件
+          path: ${{ steps.tauri_build.outputs.artifacts }}
