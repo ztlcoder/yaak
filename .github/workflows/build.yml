@@ -23,6 +23,8 @@ jobs:
         with:
           node-version: 20
           cache: 'pnpm' # ⭐️ 根据您的偏好，使用 pnpm 缓存
+      - name: Install pnpm
+        run: npm install -g pnpm
           
       - name: Install dependencies (pnpm) # 3. 使用 pnpm 安装前端依赖
         run: pnpm install
