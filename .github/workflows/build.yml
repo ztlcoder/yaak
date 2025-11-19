@@ -1,0 +1,46 @@
+name: 'Publish Tauri App' # 工作流的名称
+
+on:
+  push:
+    branches:
+      - main # 当推送到 main 分支时触发
+
+jobs:
+  publish-tauri:
+    # 使用矩阵策略，同时为 Windows, macOS, Linux 平台构建
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [macos-latest, ubuntu-latest, windows-latest]
+    
+    runs-on: ${{ matrix.platform }} # 在对应的操作系统上运行任务
+
+    steps:
+      - uses: actions/checkout@v4 # 1. 检出代码
+      
+      - name: Setup Node.js # 2. 设置 Node.js 环境
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm' # ⭐️ 根据您的偏好，使用 pnpm 缓存
+          
+      - name: Install dependencies (pnpm) # 3. 使用 pnpm 安装前端依赖
+        run: pnpm install
+        
+      - name: Install Rust toolchain # 4. 设置 Rust 环境
+        uses: dtolnay/rust-toolchain@stable
+        
+      - name: Build Tauri App # 5. 运行 Tauri 构建命令
+        uses: tauri-apps/tauri-action@v0 # 使用官方 Tauri Action
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 用于创建 Release
+        with:
+          # 此处可以传入 tauri build 的额外参数
+          # 默认会构建 release 包并上传到 GitHub Release
+          args: '--target ${{ matrix.target }}'
+          
+      - name: Upload Artifacts # 6. 将生成的安装包作为工作流产物上传
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.platform }}-build
+          path: src-tauri/target/release/bundle/ # Tauri 默认的输出路径
