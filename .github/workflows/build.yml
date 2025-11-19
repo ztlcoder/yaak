@@ -1,9 +1,9 @@
-name: 'Publish Tauri App with npm' # 工作流名称已更新
+name: 'Publish Tauri App with npm'
 
 on:
   push:
     branches:
-      - main # 当推送到 main 分支时触发
+      - main # 在代码推送到 main 分支时触发构建
 
 jobs:
   publish-tauri:
@@ -11,6 +11,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # 定义需要构建的操作系统
         platform: [macos-latest, ubuntu-latest, windows-latest]
     
     runs-on: ${{ matrix.platform }} # 在对应的操作系统上运行任务
@@ -22,31 +23,36 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm' # 缓存类型改为 npm
+          cache: 'npm' # 依赖包缓存使用 npm
           
-      - name: Install dependencies (npm) # 3. 使用 npm 安装依赖
-        run: npm install # 使用 npm install 命令
+      - name: Install dependencies (npm) # 3. 使用 npm 安装前端依赖
+        run: npm install
         
       - name: Install Rust toolchain # 4. 设置 Rust 环境
         uses: dtolnay/rust-toolchain@stable
         
-      # 5. [仅限 Linux] 安装 Webkit2Gtk 依赖
+      # 5. [仅限 Linux] 安装 Webkit2Gtk 依赖 (已包含 apt update 解决报错)
       - name: Install Linux Dependencies
         if: matrix.platform == 'ubuntu-latest'
         run: |
+          # 刷新包列表以确保找到 libwebkit2gtk-4.0-dev
           sudo apt update
+          # 安装 Tauri 在 Linux 上所需的依赖
           sudo apt install -y libwebkit2gtk-4.0-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
           
       - name: Build Tauri App # 6. 运行 Tauri 构建命令
         uses: tauri-apps/tauri-action@v0 # 使用官方 Tauri Action
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 用于创建 Release
+          # GITHUB_TOKEN 是 GitHub Actions 自动提供的 secret，用于创建 Release
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
         with:
-          # 此处可以传入 tauri build 的额外参数
+          # 传入 tauri build 的参数，使用矩阵目标进行跨平台构建
           args: '--target ${{ matrix.target }}'
           
       - name: Upload Artifacts # 7. 将生成的安装包作为工作流产物上传
         uses: actions/upload-artifact@v4
         with:
+          # 产物名称会根据平台不同而变化 (e.g., macos-latest-build)
           name: ${{ matrix.platform }}-build
-          path: src-tauri/target/release/bundle/ # Tauri 默认的输出路径
+          # Tauri 默认的输出路径
+          path: src-tauri/target/release/bundle/
