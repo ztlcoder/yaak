@@ -1,4 +1,4 @@
-name: 'Publish Tauri App with npm'
+name: 'Build and Publish Yaak for Windows'
 
 on:
   push:
@@ -6,23 +6,13 @@ on:
       - main # 在代码推送到 main 分支时触发构建
 
 jobs:
-  publish-tauri:
-    # 策略：同时构建 Windows, macOS, Linux 平台
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          # macOS 平台
-          - platform: macos-latest
-            target: universal-apple-darwin
-          # Linux 平台
-          - platform: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-          # Windows 平台
-          - platform: windows-latest
-            target: x86_64-pc-windows-msvc
+  publish-windows:
+    # 只需要 Windows 平台
+    runs-on: windows-latest 
     
-    runs-on: ${{ matrix.platform }} # 在对应的操作系统上运行任务
+    # 明确定义目标平台参数，便于后续引用
+    env:
+      TAURI_TARGET: x86_64-pc-windows-msvc
 
     steps:
       - uses: actions/checkout@v4 # 1. 检出代码
@@ -31,7 +21,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm' # 依赖包缓存使用 npm
+          cache: 'npm' # 使用 npm 缓存
           
       - name: Install dependencies (npm) # 3. 使用 npm 安装前端依赖
         run: npm install
@@ -40,30 +30,21 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          targets: ${{ matrix.target }}
-        
-      # 5. [仅限 Linux] 安装 Webkit2Gtk 依赖
-      - name: Install Linux Dependencies
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          # 刷新包列表以确保找到依赖包
-          sudo apt update
-          # 安装 Tauri 在 Linux 上所需的依赖
-          sudo apt install -y libwebkit2gtk-4.0-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+          targets: ${{ env.TAURI_TARGET }} # 使用环境变量中定义的 target
           
-      - name: Build Tauri App # 6. 运行 Tauri 构建命令
-        id: tauri_build # 赋予 ID 用于引用输出
-        uses: tauri-apps/tauri-action@v0 # 使用官方 Tauri Action
+      - name: Build Tauri App for Windows # 5. 运行 Tauri 构建命令
+        uses: tauri-apps/tauri-action@v0 
         env:
-          # GITHUB_TOKEN 是 GitHub Actions 自动提供的 secret
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # 自动提供的 secret
         with:
-          # 传入正确的 target 参数
-          args: '--target ${{ matrix.target }}'
+          # 传入正确的 Windows target 参数
+          args: '--target ${{ env.TAURI_TARGET }}'
           
-      - name: Upload Artifacts # 7. 将生成的安装包作为工作流产物上传
+      - name: Upload Windows Artifacts # 6. 将生成的安装包作为工作流产物上传
+        # 仅在构建步骤成功时执行此步骤
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.platform }}-${{ matrix.target }}-build
-          # 引用上一步 tauri-action 的输出路径，保证能找到文件
-          path: ${{ steps.tauri_build.outputs.artifacts }}
+          name: windows-installer
+          # Tauri 默认的 Windows 输出路径
+          path: src-tauri/target/release/bundle/
